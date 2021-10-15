@@ -69,13 +69,15 @@ impl Cyberdeck {
         };
 
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
-        return Ok(Cyberdeck {
+        let mut c = Cyberdeck {
             peer_connection,
             handle_message: Arc::new(Mutex::new(Some(Box::new(handle_message)))),
-        });
+        };
+        c.setup().await;
+        return Ok(c);
     }
 
-    pub async fn connect(&mut self, offer: String) -> Result<String> {
+    async fn setup(&mut self){
         let handler = self.handle_message.clone();
 
         self.peer_connection
@@ -130,7 +132,9 @@ impl Cyberdeck {
                 })
             }))
             .await;
+    }
 
+    pub async fn set_offer(&mut self, offer: String) -> Result<String> {
         let desc_data = decode(offer.as_str())?.to_string();
         let offer = serde_json::from_str::<RTCSessionDescription>(&desc_data)?;
         self.peer_connection.set_remote_description(offer).await?;

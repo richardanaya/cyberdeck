@@ -15,7 +15,7 @@ let mut cd = Cyberdeck::new(|c, msg| {
     }
 })
 .await?;
-let answer = cd.connect(offer).await?;
+let answer = cd.set_offer(offer).await?;
 ```
 
 You can try out this code by going to https://jsfiddle.net/ndgvLuyc/

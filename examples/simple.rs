@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
         }
     })
     .await?;
-    let answer = cd.connect(offer).await?;
+    let answer = cd.set_offer(offer).await?;
 
     println!("Type in this code into the website: {}", answer);
     tokio::signal::ctrl_c().await?;
