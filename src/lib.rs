@@ -12,12 +12,13 @@ use webrtc::peer::ice::ice_server::RTCIceServer;
 use webrtc::peer::peer_connection::RTCPeerConnection;
 use webrtc::peer::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer::sdp::session_description::RTCSessionDescription;
+use std::cell::RefCell;
 
-pub type MessageHandler = std::pin::Pin<Box<dyn Fn(DataChannelMessage) + Send + Sync>>;
+pub type MessageHandler = Box<dyn Fn(DataChannelMessage) + Send + Sync>;
 
 pub struct Cyberdeck {
     peer_connection: Arc<RTCPeerConnection>,
-    handle_message: Option<Arc<MessageHandler>>,
+    handle_message: Option<Arc<RefCell<MessageHandler>>>,
 }
 
 impl Cyberdeck {
@@ -49,12 +50,19 @@ impl Cyberdeck {
 
     pub fn set_message_handler(
         &mut self,
-        handle_message: std::pin::Pin<Box<dyn Fn(DataChannelMessage) + Send + Sync>>,
+        handle_message: impl Fn(DataChannelMessage) + Send + Sync + 'static,
     ) {
-        self.handle_message = Some(Arc::new(handle_message));
+        self.handle_message = Some(Arc::new(RefCell::new(Box::new(handle_message))));
     }
 
     pub async fn connect(&mut self, offer: String) -> Result<String> {
+        // HELP: I copy the atomic reference here if it exists
+        let handler:Option<Arc<RefCell<Box<(dyn Fn(DataChannelMessage) + Send + Sync + 'static)>>>> = if let Some(h) = &self.handle_message  {
+            Some(h.clone())
+        } else {
+            None
+        };
+
         self.peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
                 println!("Peer Connection State has changed: {}", s);
@@ -63,16 +71,17 @@ impl Cyberdeck {
             .await;
 
         self.peer_connection
-            .on_data_channel(Box::new(move |d: Arc<RTCDataChannel>| {
+            .on_data_channel(Box::new(|d: Arc<RTCDataChannel>| {
                 Box::pin(async move {
-                    d.on_open(Box::new(move || {
+                    /*d.on_open(Box::new(move || {
                         //todo handle open
                         Box::pin(async {})
                     }))
-                    .await;
+                    .await;*/
 
-                    d.on_message(Box::new(|msg: DataChannelMessage| {
-                        // todo handle message
+                    d.on_message(Box::new( |msg: DataChannelMessage| {
+                        // HELP: Things go crazy here
+                        let h = handler;
                         let msg_str = String::from_utf8(msg.data.to_vec()).unwrap();
                         println!("Message from DataChannel '{}'", msg_str);
                         Box::pin(async {})
