@@ -22,8 +22,8 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn name(&self) -> String {
-        self.conn.label().to_string()
+    pub fn name(&self) -> &str {
+        self.conn.label()
     }
 
     pub fn state(&self) -> RTCDataChannelState {
