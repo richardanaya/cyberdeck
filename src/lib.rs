@@ -8,12 +8,14 @@ use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
 use webrtc::data::data_channel::data_channel_message::DataChannelMessage;
+pub use webrtc::data::data_channel::data_channel_state::RTCDataChannelState;
 pub use webrtc::data::data_channel::RTCDataChannel;
 use webrtc::peer::configuration::RTCConfiguration;
 use webrtc::peer::ice::ice_server::RTCIceServer;
 use webrtc::peer::peer_connection::RTCPeerConnection;
 use webrtc::peer::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer::sdp::session_description::RTCSessionDescription;
+pub use bytes::Bytes;
 
 pub struct Connection {
     conn: Arc<RTCDataChannel>,
@@ -23,6 +25,15 @@ impl Connection {
     pub fn name(&self) -> String {
         self.conn.label().to_string()
     }
+
+    pub fn state(&self) -> RTCDataChannelState {
+        self.conn.ready_state()
+    }
+
+    pub fn send(&self, data: &Bytes) -> Result<usize, webrtc::Error> {
+        task::block_on(self.conn.send(data))
+    }
+
     pub fn send_text(&self, msg: &str) -> Result<usize, webrtc::Error> {
         task::block_on(self.conn.send_text(msg.to_string()))
     }
@@ -30,15 +41,14 @@ impl Connection {
 
 pub struct Cyberdeck {
     peer_connection: Arc<RTCPeerConnection>,
-    handle_open: Arc<Mutex<Option<Box<dyn Fn(Connection) + Send + Sync + 'static>>>>,
-    handle_message:
-        Arc<Mutex<Option<Box<dyn Fn(Connection, DataChannelMessage) + Send + Sync + 'static>>>>,
+    handle_message: Arc<
+        Mutex<Option<Box<dyn Fn(Connection, Option<DataChannelMessage>) + Send + Sync + 'static>>>,
+    >,
 }
 
 impl Cyberdeck {
     pub async fn new(
-        handle_open: impl Fn(Connection) + Send + Sync + 'static,
-        handle_message: impl Fn(Connection, DataChannelMessage) + Send + Sync + 'static,
+        handle_message: impl Fn(Connection, Option<DataChannelMessage>) + Send + Sync + 'static,
     ) -> Result<Cyberdeck> {
         let mut m = MediaEngine::default();
         m.register_default_codecs()?;
@@ -61,13 +71,11 @@ impl Cyberdeck {
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
         return Ok(Cyberdeck {
             peer_connection,
-            handle_open: Arc::new(Mutex::new(Some(Box::new(handle_open)))),
             handle_message: Arc::new(Mutex::new(Some(Box::new(handle_message)))),
         });
     }
 
     pub async fn connect(&mut self, offer: String) -> Result<String> {
-        let open_handler = self.handle_open.clone();
         let handler = self.handle_message.clone();
 
         self.peer_connection
@@ -80,17 +88,30 @@ impl Cyberdeck {
         self.peer_connection
             .on_data_channel(Box::new(move |d: Arc<RTCDataChannel>| {
                 let h2 = handler.clone();
-                let o2 = open_handler.clone();
+                let o2 = handler.clone();
+                let c2 = handler.clone();
 
                 Box::pin(async move {
                     let d2 = d.clone();
                     let d4 = d.clone();
+                    let d6 = d.clone();
                     d.on_open(Box::new(move || {
                         let d3 = d2.clone();
                         let o4 = &o2;
                         let o5 = o4.lock().unwrap();
                         if let Some(f) = o5.as_ref() {
-                            f(Connection { conn: d3 });
+                            f(Connection { conn: d3 }, None);
+                        }
+                        Box::pin(async {})
+                    }))
+                    .await;
+
+                    d.on_close(Box::new(move || {
+                        let d3 = d6.clone();
+                        let o4 = &c2;
+                        let o5 = o4.lock().unwrap();
+                        if let Some(f) = o5.as_ref() {
+                            f(Connection { conn: d3 }, None);
                         }
                         Box::pin(async {})
                     }))
@@ -101,7 +122,7 @@ impl Cyberdeck {
                         let h4 = &h2;
                         let h5 = h4.lock().unwrap();
                         if let Some(f) = h5.as_ref() {
-                            f(Connection { conn: d5 }, msg);
+                            f(Connection { conn: d5 }, Some(msg));
                         }
                         Box::pin(async {})
                     }))

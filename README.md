@@ -2,17 +2,18 @@
 A library for easily creating WebRTC data channel connections in Rust.
 
 ```rust
-let mut cd = Cyberdeck::new(
-    |channel| {
-        println!("Data channel {} was connected!", channel.name());
-        c.send_text("connected!").expect("could not send message");
-    },
-    |channel, msg| {
-        println!("Recieved a message from channel {}!", channel.name());
-        let msg_str = String::from_utf8(msg.data.to_vec()).unwrap();
-        println!("Message from DataChannel '{}'", msg_str);
-    },
-)
+let mut cd = Cyberdeck::new(|c, msg| {
+    if let Some(m) = msg {
+        println!("Recieved a message from channel {}!", c.name());
+        let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
+        println!("Message from DataChannel '{}': {}", c.name(), msg_str);
+    } else if c.state() == RTCDataChannelState::Open {
+        println!("DataChannel '{}' opened", c.name());
+        c.send_text("Connected to client!").unwrap();
+    } else if c.state() == RTCDataChannelState::Closed {
+        println!("DataChannel '{}' closed", c.name());
+    }
+})
 .await?;
 let answer = cd.connect(offer).await?;
 ```
