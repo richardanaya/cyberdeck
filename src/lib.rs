@@ -218,6 +218,13 @@ impl Cyberdeck {
         }
     }
 
+    pub async fn create_channel(&mut self, name: String) -> Result<(), webrtc::Error> {
+        match self.peer_connection.create_data_channel(&name, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
     pub async fn close(&mut self) -> Result<(), webrtc::Error> {
         self.abort.send(()).await?;
         self.peer_connection.close().await

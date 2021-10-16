@@ -19,7 +19,10 @@ async fn main() -> Result<()> {
     .await?;
     let answer = cd.receive_offer(offer).await?;
 
-    println!("Type in this code into the other website/terminal app: {}", answer);
+    println!(
+        "Type in this code into the other website/terminal app: {}",
+        answer
+    );
     tokio::signal::ctrl_c().await?;
     cd.close().await?;
     Ok(())

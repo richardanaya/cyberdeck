@@ -19,7 +19,10 @@ async fn main() -> Result<()> {
 
     let offer = cd.create_offer().await?;
 
-    println!("Type in this code into the other website/terminal app: {}", offer);
+    println!(
+        "Type in this code into the other website/terminal app: {}",
+        offer
+    );
 
     println!("Type in this code from the other website/terminal app.");
 
