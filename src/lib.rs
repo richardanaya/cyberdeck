@@ -184,15 +184,11 @@ impl Cyberdeck {
             }))
             .await;
 
-        return Ok(c);
+        Ok(c)
     }
 
     pub async fn create_offer(&mut self) -> Result<String> {
         let offer = self.peer_connection.create_offer(None).await?;
-        let payload = match serde_json::to_string(&offer) {
-            Ok(p) => p,
-            Err(_) => return Err(anyhow!("could not serialize offer")),
-        };
 
         // Sets the LocalDescription, and starts our UDP listeners
         // Note: this will start the gathering of ICE candidates
@@ -202,9 +198,9 @@ impl Cyberdeck {
         if let Some(local_desc) = self.peer_connection.local_description().await {
             let json_str = serde_json::to_string(&local_desc)?;
             let b64 = encode(&json_str);
-            return Ok(b64);
+            Ok(b64)
         } else {
-            return Err(anyhow!("generate local_description failed!"));
+            Err(anyhow!("generate local_description failed!"))
         }
     }
 
@@ -220,14 +216,14 @@ impl Cyberdeck {
         if let Some(local_desc) = self.peer_connection.local_description().await {
             let json_str = serde_json::to_string(&local_desc)?;
             let b64 = encode(&json_str);
-            return Ok(b64);
+            Ok(b64)
         } else {
-            return Err(anyhow!("generate local_description failed!"));
+            Err(anyhow!("generate local_description failed!"))
         }
     }
 
     pub async fn create_channel(&mut self, name: &str) -> Result<(), webrtc::Error> {
-        match self.peer_connection.create_data_channel(&name, None).await {
+        match self.peer_connection.create_data_channel(name, None).await {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
