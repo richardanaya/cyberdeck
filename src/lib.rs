@@ -6,6 +6,7 @@ use interceptor::registry::Registry;
 use std::mem;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::mpsc;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
@@ -17,7 +18,6 @@ use webrtc::peer::ice::ice_server::RTCIceServer;
 use webrtc::peer::peer_connection::RTCPeerConnection;
 use webrtc::peer::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer::sdp::session_description::RTCSessionDescription;
-use tokio::sync::mpsc;
 
 pub struct Configuration {
     stun_or_turn_urls: Vec<String>,
@@ -50,6 +50,7 @@ pub struct Cyberdeck {
     handle_message: Arc<
         Mutex<Option<Box<dyn Fn(Connection, Option<DataChannelMessage>) + Send + Sync + 'static>>>,
     >,
+    abort: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 impl Cyberdeck {
@@ -91,26 +92,38 @@ impl Cyberdeck {
         let mut c = Cyberdeck {
             peer_connection,
             handle_message: Arc::new(Mutex::new(Some(Box::new(handle_message)))),
+            abort: None,
         };
-        c.setup().await;
-        return Ok(c);
-    }
+        let handler = c.handle_message.clone();
+        let (tx, mut msg_rx) = mpsc::unbounded_channel();
+        let (abort_tx, mut abort_rx) = tokio::sync::oneshot::channel();
+        c.abort = Some(abort_tx);
 
-    async fn setup(&mut self) {
-        let handler = self.handle_message.clone();
-        let (tx1, mut rx) = mpsc::unbounded_channel();
-        let tx2 = tx1.clone();
-        let tx3 = tx1.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    val = msg_rx.recv() => {
+                        println!("msg_rx completed first with ");
+                    }
+                    val = &mut abort_rx => {
+                        break;
+                    }
+                };
+            }
+        });
 
-        self.peer_connection
+        c.peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
                 println!("Peer Connection State has changed: {}", s);
                 Box::pin(async {})
             }))
             .await;
 
-        self.peer_connection
+        c.peer_connection
             .on_data_channel(Box::new(move |d: Arc<RTCDataChannel>| {
+                let tx1 = tx.clone();
+                let tx2 = tx.clone();
+                let tx3 = tx.clone();
                 let handler_clone1 = handler.clone();
                 let handler_clone2 = handler.clone();
                 let handler_clone3 = handler.clone();
@@ -120,46 +133,42 @@ impl Cyberdeck {
                     let data_cannel_clone2 = d.clone();
                     let data_cannel_clone3 = d.clone();
                     d.on_open(Box::new(move || {
-                        if let Some(f) = (&handler_clone1).lock().unwrap().as_ref() {
-                            f(
-                                Connection {
-                                    conn: data_cannel_clone1.clone(),
-                                },
-                                None,
-                            );
-                        }
+                        tx1.send((
+                            Connection {
+                                conn: data_cannel_clone1.clone(),
+                            },
+                            None,
+                        ));
                         Box::pin(async {})
                     }))
                     .await;
 
                     d.on_close(Box::new(move || {
-                        if let Some(f) = (&handler_clone2).lock().unwrap().as_ref() {
-                            f(
-                                Connection {
-                                    conn: data_cannel_clone2.clone(),
-                                },
-                                None,
-                            );
-                        }
+                        tx2.send((
+                            Connection {
+                                conn: data_cannel_clone2.clone(),
+                            },
+                            None,
+                        ));
                         Box::pin(async {})
                     }))
                     .await;
 
                     d.on_message(Box::new(move |msg: DataChannelMessage| {
-                        if let Some(f) = (&handler_clone3).lock().unwrap().as_ref() {
-                            f(
-                                Connection {
-                                    conn: data_cannel_clone3.clone(),
-                                },
-                                Some(msg),
-                            );
-                        }
+                        tx3.send((
+                            Connection {
+                                conn: data_cannel_clone3.clone(),
+                            },
+                            Some(msg),
+                        ));
                         Box::pin(async {})
                     }))
                     .await;
                 })
             }))
             .await;
+
+        return Ok(c);
     }
 
     pub async fn set_offer(&mut self, offer: String) -> Result<String> {
