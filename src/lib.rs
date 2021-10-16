@@ -196,8 +196,16 @@ impl Cyberdeck {
 
         // Sets the LocalDescription, and starts our UDP listeners
         // Note: this will start the gathering of ICE candidates
+        let mut gather_complete = self.peer_connection.gathering_complete_promise().await;
         self.peer_connection.set_local_description(offer).await?;
-        return Ok(encode(&payload));
+        let _ = gather_complete.recv().await;
+        if let Some(local_desc) = self.peer_connection.local_description().await {
+            let json_str = serde_json::to_string(&local_desc)?;
+            let b64 = encode(&json_str);
+            return Ok(b64);
+        } else {
+            return Err(anyhow!("generate local_description failed!"));
+        }
     }
 
     pub async fn receive_offer(&mut self, offer: String) -> Result<String> {
