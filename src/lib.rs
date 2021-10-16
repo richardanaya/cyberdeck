@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 pub use bytes::Bytes;
 use interceptor::registry::Registry;
+use std::future::Future;
 use std::mem;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -16,7 +17,6 @@ use webrtc::peer::ice::ice_server::RTCIceServer;
 use webrtc::peer::peer_connection::RTCPeerConnection;
 use webrtc::peer::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer::sdp::session_description::RTCSessionDescription;
-use std::future::Future;
 
 pub struct Configuration {
     stun_or_turn_urls: Vec<String>,
@@ -52,7 +52,10 @@ pub struct Cyberdeck {
 impl Cyberdeck {
     pub async fn new<T>(
         handle_message: impl Fn(Connection, Option<DataChannelMessage>) -> T + Send + Sync + 'static,
-    ) -> Result<Cyberdeck> where T:Future<Output=()>+ Send + Sync {
+    ) -> Result<Cyberdeck>
+    where
+        T: Future<Output = ()> + Send + Sync,
+    {
         Cyberdeck::new_with_configuration(
             handle_message,
             Configuration {
@@ -65,7 +68,10 @@ impl Cyberdeck {
     pub async fn new_with_configuration<T>(
         handle_message: impl Fn(Connection, Option<DataChannelMessage>) -> T + Send + Sync + 'static,
         mut config: Configuration,
-    ) -> Result<Cyberdeck> where T:Future<Output=()>+ Send + Sync {
+    ) -> Result<Cyberdeck>
+    where
+        T: Future<Output = ()> + Send + Sync,
+    {
         let mut m = MediaEngine::default();
         m.register_default_codecs()?;
         let mut registry = Registry::new();
@@ -181,7 +187,20 @@ impl Cyberdeck {
         return Ok(c);
     }
 
-    pub async fn set_offer(&mut self, offer: String) -> Result<String> {
+    pub async fn create_offer(&mut self) -> Result<String> {
+        let offer = self.peer_connection.create_offer(None).await?;
+        let payload = match serde_json::to_string(&offer) {
+            Ok(p) => p,
+            Err(_) => return Err(anyhow!("could not serialize offer")),
+        };
+
+        // Sets the LocalDescription, and starts our UDP listeners
+        // Note: this will start the gathering of ICE candidates
+        self.peer_connection.set_local_description(offer).await?;
+        return Ok(encode(&payload));
+    }
+
+    pub async fn receive_offer(&mut self, offer: String) -> Result<String> {
         let desc_data = decode(offer.as_str())?.to_string();
         let offer = serde_json::from_str::<RTCSessionDescription>(&desc_data)?;
         self.peer_connection.set_remote_description(offer).await?;

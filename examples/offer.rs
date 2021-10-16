@@ -3,8 +3,7 @@ use cyberdeck::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let offer = must_read_stdin()?;
-    let mut cd = Cyberdeck::new( |c, msg| async move {
+    let mut cd = Cyberdeck::new(|c, msg| async move {
         if let Some(m) = msg {
             println!("Recieved a message from channel {}!", c.name());
             let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
@@ -17,9 +16,17 @@ async fn main() -> Result<()> {
         }
     })
     .await?;
-    let answer = cd.set_offer(offer).await?;
 
-    println!("Type in this code into the website: {}", answer);
+    let offer = cd.create_offer().await?;
+
+    println!("Type in this code into the other website/terminal app: {}", offer);
+
+    println!("Type in this code from the other website/terminal app.");
+
+    let other_offer = must_read_stdin()?;
+
+    cd.receive_offer(other_offer).await?;
+
     tokio::signal::ctrl_c().await?;
     cd.close().await?;
     Ok(())

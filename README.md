@@ -21,6 +21,16 @@ let answer = cd.set_offer(offer).await?;
 You can try out this code by going to https://jsfiddle.net/ndgvLuyc/
 
 1. Copy the code from "Browser base64 Session Description"
-2. Open up a terminal and type in `echo <code you copied from above> | cargo run --example simple`
+2. Open up a terminal and type in `echo <code you copied from above> | cargo run --example receiver`
 3. Copy the response code in the terminal, and past it into "Rust base64 Session Description"
 4. Hit connect and send messages
+
+
+Limitations:
+* Right now this only seems to work app to website. Not quite sure how to handle ICE servers yet. If you want to test this out though:
+
+1. `cargo run --example offer`
+2. copy the code
+3. `echo <code you copied from above> | cargo run --example receiver`
+4. copy the code the receiver app gives you
+5. paste the code into the terminal of the offer app and press enter
