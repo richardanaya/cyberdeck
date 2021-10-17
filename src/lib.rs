@@ -219,8 +219,8 @@ impl Cyberdeck {
         }
     }
 
-    pub async fn receive_offer(&mut self, offer: String) -> Result<String> {
-        let desc_data = decode(offer.as_str())?.to_string();
+    pub async fn receive_offer(&mut self, offer: &str) -> Result<String> {
+        let desc_data = decode(offer)?.to_string();
         let offer = serde_json::from_str::<RTCSessionDescription>(&desc_data)?;
         self.peer_connection.set_remote_description(offer).await?;
         let answer = self.peer_connection.create_answer(None).await?;

@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
 
     let other_offer = must_read_stdin()?;
 
-    cd.receive_offer(other_offer).await?;
+    cd.receive_offer(&other_offer).await?;
 
     tokio::signal::ctrl_c().await?;
     cd.close().await?;
