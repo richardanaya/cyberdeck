@@ -249,6 +249,12 @@ impl Cyberdeck {
     }
 }
 
+impl Drop for Cyberdeck {
+    fn drop(&mut self) {
+        self.abort.send(())?;
+    }
+}
+
 fn encode(b: &str) -> String {
     base64::encode(b)
 }
