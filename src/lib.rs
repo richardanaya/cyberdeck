@@ -117,7 +117,6 @@ impl Cyberdeck {
                         }
                     }
                     _ = abort_rx.recv() => {
-                        println!("stopping thread");
                         break;
                     }
                 };
@@ -126,7 +125,20 @@ impl Cyberdeck {
 
         c.peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
-                println!("{}", s);
+                match tx_clone.send(CyberdeckEvent::PeerConnectionStateChange(s)) {
+                    Ok(_) => (),
+                    Err(error) => {
+                        panic!("Error sending mpsc message: {:?}", error.to_string())
+                    }
+                };
+                if s == RTCPeerConnectionState::Failed {
+                    match abort_tx_clone.send(()) {
+                        Ok(_) => (),
+                        Err(error) => {
+                            panic!("Error sending mpsc message: {:?}", error.to_string())
+                        }
+                    };
+                }
                 Box::pin(async {})
             }))
             .await;
@@ -155,7 +167,6 @@ impl Cyberdeck {
                     .await;
 
                     d.on_close(Box::new(move || {
-                        print!("!!!");
                         match tx2.send(CyberdeckEvent::DataChannelStateChange(Connection {
                             conn: data_cannel_clone2.clone(),
                         })) {
