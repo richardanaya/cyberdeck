@@ -1,5 +1,12 @@
+<a href="https://docs.rs/cyberdeck"><img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square" alt="docs.rs docs" /></a>
+
 # Cyberdeck
 A library for easily creating WebRTC data channel connections in Rust.
+
+```toml
+[dependencies]
+cyberdeck = "0.0.10"
+```
 
 ```rust
 let mut cd = Cyberdeck::new(|e| async move {
@@ -42,3 +49,20 @@ Limitations:
 3. `echo <code you copied from above> | cargo run --example receiver`
 4. copy the code the receiver app gives you
 5. paste the code into the terminal of the offer app and press enter
+
+# License
+
+This project is licensed under either of
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+   http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+   http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in `cyberdeck` by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
