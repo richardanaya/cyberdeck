@@ -2,20 +2,28 @@
 A library for easily creating WebRTC data channel connections in Rust.
 
 ```rust
-let mut cd = Cyberdeck::new(|c, msg| {
-    if let Some(m) = msg {
-        println!("Recieved a message from channel {}!", c.name());
-        let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
-        println!("Message from DataChannel '{}': {}", c.name(), msg_str);
-    } else if c.state() == RTCDataChannelState::Open {
-        println!("DataChannel '{}' opened", c.name());
-        c.send_text("Connected to client!").unwrap();
-    } else if c.state() == RTCDataChannelState::Closed {
-        println!("DataChannel '{}' closed", c.name());
+let mut cd = Cyberdeck::new(|e| async move {
+    match e {
+        CyberdeckEvent::DataChannelMessage(c, m) => {
+            println!("Recieved a message from channel {}!", c.name());
+            let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
+            println!("Message from DataChannel '{}': {}", c.name(), msg_str);
+        }
+        CyberdeckEvent::DataChannelStateChange(c) => {
+            if c.state() == RTCDataChannelState::Open {
+                println!("DataChannel '{}' opened", c.name());
+                c.send_text("Connected to client!").await.unwrap();
+            } else if c.state() == RTCDataChannelState::Closed {
+                println!("DataChannel '{}' closed", c.name());
+            }
+        }
+        CyberdeckEvent::PeerConnectionStateChange(s) => {
+            println!("Peer connection state: {} ", s)
+        }
     }
 })
 .await?;
-let answer = cd.set_offer(offer).await?;
+let answer = cd.receive_offer(offer).await?;
 ```
 
 You can try out this code by going to https://jsfiddle.net/ndgvLuyc/

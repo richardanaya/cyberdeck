@@ -46,12 +46,18 @@ impl Connection {
 
 pub struct Cyberdeck {
     peer_connection: Arc<RTCPeerConnection>,
-    abort: mpsc::Sender<()>,
+    abort: mpsc::UnboundedSender<()>,
+}
+
+pub enum CyberdeckEvent {
+    PeerConnectionStateChange(RTCPeerConnectionState),
+    DataChannelStateChange(Connection),
+    DataChannelMessage(Connection, DataChannelMessage),
 }
 
 impl Cyberdeck {
     pub async fn new<T>(
-        handle_message: impl Fn(Connection, Option<DataChannelMessage>) -> T + Send + Sync + 'static,
+        handle_message: impl Fn(CyberdeckEvent) -> T + Send + Sync + 'static,
     ) -> Result<Cyberdeck>
     where
         T: Future<Output = ()> + Send + Sync,
@@ -66,7 +72,7 @@ impl Cyberdeck {
     }
 
     pub async fn new_with_configuration<T>(
-        handle_message: impl Fn(Connection, Option<DataChannelMessage>) -> T + Send + Sync + 'static,
+        handle_message: impl Fn(CyberdeckEvent) -> T + Send + Sync + 'static,
         mut config: Configuration,
     ) -> Result<Cyberdeck>
     where
@@ -92,9 +98,10 @@ impl Cyberdeck {
 
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
 
-        let (tx, mut msg_rx) =
-            mpsc::unbounded_channel::<(Connection, Option<DataChannelMessage>)>();
-        let (abort_tx, mut abort_rx) = mpsc::channel::<()>(1);
+        let (tx, mut msg_rx) = mpsc::unbounded_channel::<CyberdeckEvent>();
+        let tx_clone = tx.clone();
+        let (abort_tx, mut abort_rx) = mpsc::unbounded_channel::<()>();
+        let abort_tx_clone = abort_tx.clone();
 
         let c = Cyberdeck {
             peer_connection,
@@ -106,10 +113,11 @@ impl Cyberdeck {
                 tokio::select! {
                     val = msg_rx.recv() => {
                         if let Some(v) = val {
-                            handle_message(v.0,v.1).await;
+                            handle_message(v).await;
                         }
                     }
                     _ = abort_rx.recv() => {
+                        println!("stopping thread");
                         break;
                     }
                 };
@@ -118,7 +126,7 @@ impl Cyberdeck {
 
         c.peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
-                println!("Peer Connection State has changed: {}", s);
+                println!("{}", s);
                 Box::pin(async {})
             }))
             .await;
@@ -134,12 +142,9 @@ impl Cyberdeck {
                     let data_cannel_clone2 = d.clone();
                     let data_cannel_clone3 = d.clone();
                     d.on_open(Box::new(move || {
-                        match tx1.send((
-                            Connection {
-                                conn: data_cannel_clone1.clone(),
-                            },
-                            None,
-                        )) {
+                        match tx1.send(CyberdeckEvent::DataChannelStateChange(Connection {
+                            conn: data_cannel_clone1.clone(),
+                        })) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -150,12 +155,10 @@ impl Cyberdeck {
                     .await;
 
                     d.on_close(Box::new(move || {
-                        match tx2.send((
-                            Connection {
-                                conn: data_cannel_clone2.clone(),
-                            },
-                            None,
-                        )) {
+                        print!("!!!");
+                        match tx2.send(CyberdeckEvent::DataChannelStateChange(Connection {
+                            conn: data_cannel_clone2.clone(),
+                        })) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -166,11 +169,11 @@ impl Cyberdeck {
                     .await;
 
                     d.on_message(Box::new(move |msg: DataChannelMessage| {
-                        match tx3.send((
+                        match tx3.send(CyberdeckEvent::DataChannelMessage(
                             Connection {
                                 conn: data_cannel_clone3.clone(),
                             },
-                            Some(msg),
+                            msg,
                         )) {
                             Ok(_) => (),
                             Err(error) => {
@@ -230,16 +233,16 @@ impl Cyberdeck {
     }
 
     pub async fn close(&mut self) -> Result<(), webrtc::Error> {
-        self.abort.send(()).await?;
+        self.abort.send(())?;
         self.peer_connection.close().await
     }
 }
 
-pub fn encode(b: &str) -> String {
+fn encode(b: &str) -> String {
     base64::encode(b)
 }
 
-pub fn decode(s: &str) -> Result<String> {
+fn decode(s: &str) -> Result<String> {
     let b = base64::decode(s)?;
     let s = String::from_utf8(b)?;
     Ok(s)
