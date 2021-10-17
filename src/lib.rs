@@ -251,7 +251,7 @@ impl Cyberdeck {
 
 impl Drop for Cyberdeck {
     fn drop(&mut self) {
-        self.abort.send(())?;
+        self.abort.send(()).expect("could not stop task on drop");
     }
 }
 
