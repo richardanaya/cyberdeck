@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
+use webrtc::data::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::data::data_channel::data_channel_message::DataChannelMessage;
 pub use webrtc::data::data_channel::data_channel_state::RTCDataChannelState;
 pub use webrtc::data::data_channel::RTCDataChannel;
@@ -238,6 +239,21 @@ impl Cyberdeck {
 
     pub async fn create_channel(&mut self, name: &str) -> Result<(), webrtc::Error> {
         match self.peer_connection.create_data_channel(name, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn create_channel_with_configuration(
+        &mut self,
+        name: &str,
+        config: RTCDataChannelInit,
+    ) -> Result<(), webrtc::Error> {
+        match self
+            .peer_connection
+            .create_data_channel(name, Some(config))
+            .await
+        {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
