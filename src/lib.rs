@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use anyhow::Result;
 pub use bytes::Bytes;
-use interceptor::registry::Registry;
 use std::future::Future;
 use std::mem;
 use std::sync::Arc;
@@ -9,15 +8,16 @@ use tokio::sync::mpsc;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
-pub use webrtc::data::data_channel::data_channel_init::RTCDataChannelInit;
-pub use webrtc::data::data_channel::data_channel_message::DataChannelMessage;
-pub use webrtc::data::data_channel::data_channel_state::RTCDataChannelState;
-pub use webrtc::data::data_channel::RTCDataChannel;
-use webrtc::peer::configuration::RTCConfiguration;
-use webrtc::peer::ice::ice_server::RTCIceServer;
-use webrtc::peer::peer_connection::RTCPeerConnection;
-pub use webrtc::peer::peer_connection_state::RTCPeerConnectionState;
-use webrtc::peer::sdp::session_description::RTCSessionDescription;
+pub use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
+pub use webrtc::data_channel::data_channel_message::DataChannelMessage;
+pub use webrtc::data_channel::data_channel_state::RTCDataChannelState;
+pub use webrtc::data_channel::RTCDataChannel;
+use webrtc::ice_transport::ice_server::RTCIceServer;
+use webrtc::interceptor::registry::Registry;
+use webrtc::peer_connection::configuration::RTCConfiguration;
+pub use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+use webrtc::peer_connection::RTCPeerConnection;
 
 pub struct Configuration {
     stun_or_turn_urls: Vec<String>,
@@ -210,6 +210,7 @@ impl Cyberdeck {
         let mut gather_complete = self.peer_connection.gathering_complete_promise().await;
         self.peer_connection.set_local_description(offer).await?;
         let _ = gather_complete.recv().await;
+
         if let Some(local_desc) = self.peer_connection.local_description().await {
             let json_str = serde_json::to_string(&local_desc)?;
             let b64 = encode(&json_str);
