@@ -17,10 +17,10 @@ let mut cd = Cyberdeck::new(|e| async move {
             println!("Message from DataChannel '{}': {}", channel.name(), msg_str);
         }
         CyberdeckEvent::DataChannelStateChange(channel) => {
-            if c.state() == RTCDataChannelState::Open {
+            if channel.state() == RTCDataChannelState::Open {
                 println!("DataChannel '{}' opened", channel.name());
-                c.send_text("Connected to client!").await.unwrap();
-            } else if c.state() == RTCDataChannelState::Closed {
+                channel.send_text("Connected to client!").await.unwrap();
+            } else if channel.state() == RTCDataChannelState::Closed {
                 println!("DataChannel '{}' closed", channel.name());
             }
         }
