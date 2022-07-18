@@ -53,6 +53,8 @@ async fn start_connection(offer: String) -> Result<String> {
     })
     .await?;
     let answer = cd.receive_offer(&offer).await?;
+
+    // move cyberdeck to another thread to keep it alive
     tokio::spawn(async move {
         while cd.connection_state() != RTCPeerConnectionState::Closed
             && cd.connection_state() != RTCPeerConnectionState::Disconnected
@@ -61,7 +63,9 @@ async fn start_connection(offer: String) -> Result<String> {
             // keep the connection alive while not in invalid state
             sleep(Duration::from_millis(1000)).await;
         }
+        // because we moved cyberdeck ownership into here gets dropped here and will stop all channels
     });
+    
     Ok(answer)
 }
 
