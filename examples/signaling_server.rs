@@ -2,6 +2,7 @@ use anyhow::Result;
 use axum::{response::Html, response::IntoResponse, routing::get, routing::post, Json, Router};
 use cyberdeck::*;
 use std::net::SocketAddr;
+use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() {
@@ -53,11 +54,12 @@ async fn start_connection(offer: String) -> Result<String> {
     .await?;
     let answer = cd.receive_offer(&offer).await?;
     tokio::spawn(async move {
-        while cd.status() != RTCPeerConnectionState::Closed
-            && cd.status() != RTCPeerConnectionState::Disconnected
-            && cd.status() != RTCPeerConnectionState::Failed
+        while cd.connection_state() != RTCPeerConnectionState::Closed
+            && cd.connection_state() != RTCPeerConnectionState::Disconnected
+            && cd.connection_state() != RTCPeerConnectionState::Failed
         {
             // keep the connection alive while not in invalid state
+            sleep(Duration::from_millis(1000)).await;
         }
     });
     Ok(answer)
