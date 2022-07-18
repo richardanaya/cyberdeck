@@ -40,6 +40,14 @@ You can try out this code by going to https://jsfiddle.net/ndgvLuyc/
 3. Copy the response code in the terminal, and past it into "Rust base64 Session Description"
 4. Hit connect and send messages
 
+# Signaling server
+
+WebRTC works in it's most basic form by having the client and server exchange strings that represent their networking information.  A signaling server is just some API that you exchange that information through. You can see a simple signaling server implemented with a single POST http handler here in this example [here](https://github.com/richardanaya/cyberdeck/blob/master/examples/signaling_server.rs).
+
+```bash
+cargo run --example signaling_server
+```
+
 # License
 
 This project is licensed under either of
