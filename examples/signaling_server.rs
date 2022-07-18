@@ -53,8 +53,12 @@ async fn start_connection(offer: String) -> Result<String> {
     .await?;
     let answer = cd.receive_offer(&offer).await?;
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.unwrap();
-        cd.close().await.unwrap();
+        while cd.status() != RTCPeerConnectionState::Closed
+            && cd.status() != RTCPeerConnectionState::Disconnected
+            && cd.status() != RTCPeerConnectionState::Failed
+        {
+            // keep the connection alive while not in invalid state
+        }
     });
     Ok(answer)
 }

@@ -264,6 +264,10 @@ impl Cyberdeck {
         self.abort.send(())?;
         self.peer_connection.close().await
     }
+
+    pub fn connection_state(&self) -> RTCPeerConnectionState {
+        self.peer_connection.connection_state()
+    }
 }
 
 impl Drop for Cyberdeck {

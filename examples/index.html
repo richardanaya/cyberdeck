@@ -1,12 +1,5 @@
 <html>
   <body>
-    Browser base64 Session Description
-    <textarea id="localSessionDescription" readonly="true"></textarea> <br />
-    Rust base64 Session Description:
-    <textarea id="remoteSessionDescription"></textarea> <br />
-    <button onclick="window.startSession()">Start Session</button> <br />
-    <br />
-
     Message: <textarea id="message">This is my DataChannel message!</textarea>
     <br />
     <button onclick="window.sendMessage()">Send Message</button> <br />
@@ -37,20 +30,18 @@
       pc.oniceconnectionstatechange = (e) => log(pc.iceConnectionState);
       pc.onicecandidate = async (event) => {
         if (event.candidate === null) {
-            const localDescription = btoa(
-            JSON.stringify(pc.localDescription)
-          );
-          document.getElementById("localSessionDescription").value = localDescription;
-          const result = await fetch("/connect",{
+          const localDescription = btoa(JSON.stringify(pc.localDescription));
+          const result = await fetch("/connect", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
             },
-            body: JSON.stringify(localDescription)
+            body: JSON.stringify(localDescription),
           });
           const answer = await result.json();
-          document.getElementById("remoteSessionDescription").value = answer;
-          window.startSession();
+          pc.setRemoteDescription(
+            new RTCSessionDescription(JSON.parse(atob(answer)))
+          );
         }
       };
 
@@ -67,21 +58,6 @@
         }
 
         sendChannel.send(message);
-      };
-
-      window.startSession = () => {
-        let sd = document.getElementById("remoteSessionDescription").value;
-        if (sd === "") {
-          return alert("Session Description must not be empty");
-        }
-
-        try {
-          pc.setRemoteDescription(
-            new RTCSessionDescription(JSON.parse(atob(sd)))
-          );
-        } catch (e) {
-          alert(e);
-        }
       };
     }
     run().then();
