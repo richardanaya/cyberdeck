@@ -52,6 +52,10 @@ WebRTC works in it's most basic form by having the client and server exchange st
 cargo run --example signaling_server
 ```
 
+# Art
+
+![Cyberpunk crab](https://user-images.githubusercontent.com/294042/222991163-9ef095eb-98da-419f-8f06-b1ea1d51f34d.png)
+
 # License
 
 This project is licensed under either of
