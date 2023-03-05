@@ -9,28 +9,40 @@ cyberdeck = "0.0.12"
 ```
 
 ```rust
-let mut cd = Cyberdeck::new(|e| async move {
-    match e {
-        CyberdeckEvent::DataChannelMessage(channel, msg) => {
-            println!("Recieved a message from channel {}!", channel.name());
-            let msg_str = String::from_utf8(msg.data.to_vec()).unwrap();
-            println!("Message from DataChannel '{}': {}", channel.name(), msg_str);
+let mut peer = Peer::new(move |e| async move {
+    match e.data {
+        PeerEventData::DataChannelMessage(c, m) => {
+            println!(
+                "{}::Recieved a message from channel {} with id {}!",
+                e.peer_id,
+                c.label(),
+                c.id()
+            );
+            let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
+            println!(
+                "{}::Message from DataChannel '{}': {}",
+                e.peer_id,
+                c.label(),
+                msg_str
+            );
         }
-        CyberdeckEvent::DataChannelStateChange(channel) => {
-            if channel.state() == RTCDataChannelState::Open {
-                println!("DataChannel '{}' opened", channel.name());
-                channel.send_text("Connected to client!").await.unwrap();
-            } else if channel.state() == RTCDataChannelState::Closed {
-                println!("DataChannel '{}' closed", channel.name());
+        PeerEventData::DataChannelStateChange(c) => {
+            if c.ready_state() == RTCDataChannelState::Open {
+                println!("{}::DataChannel '{}'", e.peer_id, c.label());
+                c.send_text("Connected to client!".to_string())
+                    .await
+                    .unwrap();
+            } else if c.ready_state() == RTCDataChannelState::Closed {
+                println!("{}::DataChannel '{}'", e.peer_id, c.label());
             }
         }
-        CyberdeckEvent::PeerConnectionStateChange(state) => {
-            println!("Peer connection state: {} ", state)
+        PeerEventData::PeerConnectionStateChange(s) => {
+            println!("{}::Peer connection state: {} ", e.peer_id, s)
         }
     }
 })
 .await?;
-let answer = cd.receive_offer(offer).await?;
+let answer = peer.receive_offer(&offer).await?;
 ```
 
 You can try out this code by going to https://jsfiddle.net/ndgvLuyc/
