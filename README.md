@@ -4,8 +4,7 @@
 A library for easily creating WebRTC data channel connections in Rust.
 
 ```toml
-[dependencies]
-cyberdeck = "0.0.12"
+cargo add cyberdeck
 ```
 
 ```rust
