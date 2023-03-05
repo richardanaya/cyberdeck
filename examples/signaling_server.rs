@@ -27,7 +27,7 @@ async fn connect(Json(offer): Json<String>) -> impl IntoResponse {
 }
 
 async fn start_peer_connection(offer: String) -> Result<String> {
-    let mut peer = Peer::new(move |peer_id, e| async move {
+    let mut peer = Peer::new(|peer_id, e| async move {
         match e {
             PeerEvent::DataChannelMessage(c, m) => {
                 println!(

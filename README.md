@@ -8,7 +8,7 @@ cargo add cyberdeck
 ```
 
 ```rust
-let mut peer = Peer::new(move |peer_id, e| async move {
+let mut peer = Peer::new(|peer_id, e| async move {
     match e {
         PeerEvent::DataChannelMessage(c, m) => {
             println!(
