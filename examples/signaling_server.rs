@@ -27,35 +27,35 @@ async fn connect(Json(offer): Json<String>) -> impl IntoResponse {
 }
 
 async fn start_peer_connection(offer: String) -> Result<String> {
-    let mut peer = Peer::new(move |e| async move {
-        match e.data {
-            PeerEventData::DataChannelMessage(c, m) => {
+    let mut peer = Peer::new(move |peer_id, e| async move {
+        match e {
+            PeerEvent::DataChannelMessage(c, m) => {
                 println!(
                     "{}::Recieved a message from channel {} with id {}!",
-                    e.peer_id,
+                    peer_id,
                     c.label(),
                     c.id()
                 );
                 let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
                 println!(
                     "{}::Message from DataChannel '{}': {}",
-                    e.peer_id,
+                    peer_id,
                     c.label(),
                     msg_str
                 );
             }
-            PeerEventData::DataChannelStateChange(c) => {
+            PeerEvent::DataChannelStateChange(c) => {
                 if c.ready_state() == RTCDataChannelState::Open {
-                    println!("{}::DataChannel '{}'", e.peer_id, c.label());
+                    println!("{}::DataChannel '{}'", peer_id, c.label());
                     c.send_text("Connected to client!".to_string())
                         .await
                         .unwrap();
                 } else if c.ready_state() == RTCDataChannelState::Closed {
-                    println!("{}::DataChannel '{}'", e.peer_id, c.label());
+                    println!("{}::DataChannel '{}'", peer_id, c.label());
                 }
             }
-            PeerEventData::PeerConnectionStateChange(s) => {
-                println!("{}::Peer connection state: {} ", e.peer_id, s)
+            PeerEvent::PeerConnectionStateChange(s) => {
+                println!("{}::Peer connection state: {} ", peer_id, s)
             }
         }
     })

@@ -33,20 +33,15 @@ pub struct Peer {
     abort: mpsc::UnboundedSender<()>,
 }
 
-pub enum PeerEventData {
+pub enum PeerEvent {
     PeerConnectionStateChange(RTCPeerConnectionState),
     DataChannelStateChange(DataChannel),
     DataChannelMessage(DataChannel, DataChannelMessage),
 }
 
-pub struct PeerEvent {
-    pub peer_id: u128,
-    pub data: PeerEventData,
-}
-
 impl Peer {
     pub async fn new<T>(
-        handle_message: impl Fn(PeerEvent) -> T + Send + Sync + 'static,
+        handle_message: impl Fn(u128, PeerEvent) -> T + Send + Sync + 'static,
     ) -> Result<Peer>
     where
         T: Future<Output = ()> + Send + Sync,
@@ -61,7 +56,7 @@ impl Peer {
     }
 
     pub async fn new_with_configuration<T>(
-        handle_message: impl Fn(PeerEvent) -> T + Send + Sync + 'static,
+        handle_message: impl Fn(u128, PeerEvent) -> T + Send + Sync + 'static,
         mut config: Configuration,
     ) -> Result<Peer>
     where
@@ -87,7 +82,7 @@ impl Peer {
 
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
 
-        let (tx, mut msg_rx) = mpsc::unbounded_channel::<PeerEvent>();
+        let (tx, mut msg_rx) = mpsc::unbounded_channel::<(u128, PeerEvent)>();
         let tx_clone = tx.clone();
         let (abort_tx, mut abort_rx) = mpsc::unbounded_channel::<()>();
         let abort_tx_clone = abort_tx.clone();
@@ -104,7 +99,7 @@ impl Peer {
                 tokio::select! {
                     val = msg_rx.recv() => {
                         if let Some(v) = val {
-                            handle_message(v).await;
+                            handle_message(v.0,v.1).await;
                         }
                     }
                     _ = abort_rx.recv() => {
@@ -116,10 +111,7 @@ impl Peer {
 
         c.peer_connection.on_peer_connection_state_change(Box::new(
             move |s: RTCPeerConnectionState| {
-                match tx_clone.send(PeerEvent {
-                    peer_id,
-                    data: PeerEventData::PeerConnectionStateChange(s),
-                }) {
+                match tx_clone.send((peer_id, PeerEvent::PeerConnectionStateChange(s))) {
                     Ok(_) => (),
                     Err(error) => {
                         panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -148,10 +140,10 @@ impl Peer {
                     let data_cannel_clone2 = d.clone();
                     let data_cannel_clone3 = d.clone();
                     d.on_open(Box::new(move || {
-                        match tx1.send(PeerEvent {
+                        match tx1.send((
                             peer_id,
-                            data: PeerEventData::DataChannelStateChange(data_cannel_clone1.clone()),
-                        }) {
+                            PeerEvent::DataChannelStateChange(data_cannel_clone1.clone()),
+                        )) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -161,10 +153,10 @@ impl Peer {
                     }));
 
                     d.on_close(Box::new(move || {
-                        match tx2.send(PeerEvent {
+                        match tx2.send((
                             peer_id,
-                            data: PeerEventData::DataChannelStateChange(data_cannel_clone2.clone()),
-                        }) {
+                            PeerEvent::DataChannelStateChange(data_cannel_clone2.clone()),
+                        )) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -174,13 +166,10 @@ impl Peer {
                     }));
 
                     d.on_message(Box::new(move |msg: DataChannelMessage| {
-                        match tx3.send(PeerEvent {
+                        match tx3.send((
                             peer_id,
-                            data: PeerEventData::DataChannelMessage(
-                                data_cannel_clone3.clone(),
-                                msg,
-                            ),
-                        }) {
+                            PeerEvent::DataChannelMessage(data_cannel_clone3.clone(), msg),
+                        )) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
