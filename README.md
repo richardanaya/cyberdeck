@@ -44,13 +44,6 @@ let mut peer = Peer::new(|peer_id, e| async move {
 let answer = peer.receive_offer(&offer).await?;
 ```
 
-You can try out this code by going to https://jsfiddle.net/ndgvLuyc/
-
-1. Copy the code from "Browser base64 Session Description"
-2. Open up a terminal and type in `echo <code you copied from above> | cargo run --example receiver`
-3. Copy the response code in the terminal, and past it into "Rust base64 Session Description"
-4. Hit connect and send messages
-
 # Signaling server
 
 WebRTC works in it's most basic form by having the client and server exchange strings that represent their networking information.  A signaling server is just some API that you exchange that information through. You can see a simple signaling server implemented with a single POST http handler here in this example [here](https://github.com/richardanaya/cyberdeck/blob/master/examples/signaling_server.rs).
