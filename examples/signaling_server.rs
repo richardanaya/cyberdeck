@@ -65,7 +65,7 @@ async fn start_connection(offer: String) -> Result<String> {
         }
         // because we moved cyberdeck ownership into here gets dropped here and will stop all channels
     });
-    
+
     Ok(answer)
 }
 

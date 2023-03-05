@@ -1,5 +1,7 @@
 use anyhow::anyhow;
 use anyhow::Result;
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 pub use bytes::Bytes;
 use std::future::Future;
 use std::mem;
@@ -124,8 +126,8 @@ impl Cyberdeck {
             }
         });
 
-        c.peer_connection
-            .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
+        c.peer_connection.on_peer_connection_state_change(Box::new(
+            move |s: RTCPeerConnectionState| {
                 match tx_clone.send(CyberdeckEvent::PeerConnectionStateChange(s)) {
                     Ok(_) => (),
                     Err(error) => {
@@ -141,8 +143,8 @@ impl Cyberdeck {
                     };
                 }
                 Box::pin(async {})
-            }))
-            .await;
+            },
+        ));
 
         c.peer_connection
             .on_data_channel(Box::new(move |d: Arc<RTCDataChannel>| {
@@ -164,8 +166,7 @@ impl Cyberdeck {
                             }
                         };
                         Box::pin(async {})
-                    }))
-                    .await;
+                    }));
 
                     d.on_close(Box::new(move || {
                         match tx2.send(CyberdeckEvent::DataChannelStateChange(Connection {
@@ -177,8 +178,7 @@ impl Cyberdeck {
                             }
                         };
                         Box::pin(async {})
-                    }))
-                    .await;
+                    }));
 
                     d.on_message(Box::new(move |msg: DataChannelMessage| {
                         match tx3.send(CyberdeckEvent::DataChannelMessage(
@@ -193,11 +193,9 @@ impl Cyberdeck {
                             }
                         };
                         Box::pin(async {})
-                    }))
-                    .await;
+                    }));
                 })
-            }))
-            .await;
+            }));
 
         Ok(c)
     }
@@ -277,11 +275,11 @@ impl Drop for Cyberdeck {
 }
 
 fn encode(b: &str) -> String {
-    base64::encode(b)
+    STANDARD.encode(b)
 }
 
 fn decode(s: &str) -> Result<String> {
-    let b = base64::decode(s)?;
+    let b = STANDARD.decode(s)?;
     let s = String::from_utf8(b)?;
     Ok(s)
 }
