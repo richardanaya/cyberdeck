@@ -19,46 +19,54 @@ async fn main() {
         .unwrap();
 }
 
-async fn connect(
-    // this argument tells axum to parse the request body
-    // as JSON into a `CreateUser` type
-    Json(offer): Json<String>,
-) -> impl IntoResponse {
-    match start_connection(offer).await {
+async fn connect(Json(offer): Json<String>) -> impl IntoResponse {
+    match start_peer_connection(offer).await {
         Ok(answer) => Ok(Json(answer)),
         Err(_) => Err("failed to connect"),
     }
 }
 
-async fn start_connection(offer: String) -> Result<String> {
-    let mut cd = Cyberdeck::new(|e| async move {
-        match e {
-            CyberdeckEvent::DataChannelMessage(c, m) => {
-                println!("Recieved a message from channel {}!", c.name());
+async fn start_peer_connection(offer: String) -> Result<String> {
+    let mut peer = Peer::new(move |e| async move {
+        match e.data {
+            PeerEventData::DataChannelMessage(c, m) => {
+                println!(
+                    "{}::Recieved a message from channel {} with id {}!",
+                    e.peer_id,
+                    c.label(),
+                    c.id()
+                );
                 let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
-                println!("Message from DataChannel '{}': {}", c.name(), msg_str);
+                println!(
+                    "{}::Message from DataChannel '{}': {}",
+                    e.peer_id,
+                    c.label(),
+                    msg_str
+                );
             }
-            CyberdeckEvent::DataChannelStateChange(c) => {
-                if c.state() == RTCDataChannelState::Open {
-                    println!("DataChannel '{}' opened", c.name());
-                    c.send_text("Connected to client!").await.unwrap();
-                } else if c.state() == RTCDataChannelState::Closed {
-                    println!("DataChannel '{}' closed", c.name());
+            PeerEventData::DataChannelStateChange(c) => {
+                if c.ready_state() == RTCDataChannelState::Open {
+                    println!("{}::DataChannel '{}'", e.peer_id, c.label());
+                    c.send_text("Connected to client!".to_string())
+                        .await
+                        .unwrap();
+                } else if c.ready_state() == RTCDataChannelState::Closed {
+                    println!("{}::DataChannel '{}'", e.peer_id, c.label());
                 }
             }
-            CyberdeckEvent::PeerConnectionStateChange(s) => {
-                println!("Peer connection state: {} ", s)
+            PeerEventData::PeerConnectionStateChange(s) => {
+                println!("{}::Peer connection state: {} ", e.peer_id, s)
             }
         }
     })
     .await?;
-    let answer = cd.receive_offer(&offer).await?;
+    let answer = peer.receive_offer(&offer).await?;
 
     // move cyberdeck to another thread to keep it alive
     tokio::spawn(async move {
-        while cd.connection_state() != RTCPeerConnectionState::Closed
-            && cd.connection_state() != RTCPeerConnectionState::Disconnected
-            && cd.connection_state() != RTCPeerConnectionState::Failed
+        while peer.connection_state() != RTCPeerConnectionState::Closed
+            && peer.connection_state() != RTCPeerConnectionState::Disconnected
+            && peer.connection_state() != RTCPeerConnectionState::Failed
         {
             // keep the connection alive while not in invalid state
             sleep(Duration::from_millis(1000)).await;

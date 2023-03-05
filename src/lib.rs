@@ -25,47 +25,33 @@ pub struct Configuration {
     stun_or_turn_urls: Vec<String>,
 }
 
-pub struct Connection {
-    conn: Arc<RTCDataChannel>,
-}
+pub type DataChannel = Arc<RTCDataChannel>;
 
-impl Connection {
-    pub fn name(&self) -> &str {
-        self.conn.label()
-    }
-
-    pub fn state(&self) -> RTCDataChannelState {
-        self.conn.ready_state()
-    }
-
-    pub async fn send(&self, data: &Bytes) -> Result<usize, webrtc::Error> {
-        self.conn.send(data).await
-    }
-
-    pub async fn send_text(&self, msg: &str) -> Result<usize, webrtc::Error> {
-        self.conn.send_text(msg.to_string()).await
-    }
-}
-
-pub struct Cyberdeck {
+pub struct Peer {
+    pub peer_id: u128,
     peer_connection: Arc<RTCPeerConnection>,
     abort: mpsc::UnboundedSender<()>,
 }
 
-pub enum CyberdeckEvent {
+pub enum PeerEventData {
     PeerConnectionStateChange(RTCPeerConnectionState),
-    DataChannelStateChange(Connection),
-    DataChannelMessage(Connection, DataChannelMessage),
+    DataChannelStateChange(DataChannel),
+    DataChannelMessage(DataChannel, DataChannelMessage),
 }
 
-impl Cyberdeck {
+pub struct PeerEvent {
+    pub peer_id: u128,
+    pub data: PeerEventData,
+}
+
+impl Peer {
     pub async fn new<T>(
-        handle_message: impl Fn(CyberdeckEvent) -> T + Send + Sync + 'static,
-    ) -> Result<Cyberdeck>
+        handle_message: impl Fn(PeerEvent) -> T + Send + Sync + 'static,
+    ) -> Result<Peer>
     where
         T: Future<Output = ()> + Send + Sync,
     {
-        Cyberdeck::new_with_configuration(
+        Peer::new_with_configuration(
             handle_message,
             Configuration {
                 stun_or_turn_urls: vec!["stun:stun.l.google.com:19302".to_owned()],
@@ -75,9 +61,9 @@ impl Cyberdeck {
     }
 
     pub async fn new_with_configuration<T>(
-        handle_message: impl Fn(CyberdeckEvent) -> T + Send + Sync + 'static,
+        handle_message: impl Fn(PeerEvent) -> T + Send + Sync + 'static,
         mut config: Configuration,
-    ) -> Result<Cyberdeck>
+    ) -> Result<Peer>
     where
         T: Future<Output = ()> + Send + Sync,
     {
@@ -101,12 +87,14 @@ impl Cyberdeck {
 
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
 
-        let (tx, mut msg_rx) = mpsc::unbounded_channel::<CyberdeckEvent>();
+        let (tx, mut msg_rx) = mpsc::unbounded_channel::<PeerEvent>();
         let tx_clone = tx.clone();
         let (abort_tx, mut abort_rx) = mpsc::unbounded_channel::<()>();
         let abort_tx_clone = abort_tx.clone();
 
-        let c = Cyberdeck {
+        let peer_id = Peer::random_peer_id();
+        let c = Peer {
+            peer_id,
             peer_connection,
             abort: abort_tx,
         };
@@ -128,7 +116,10 @@ impl Cyberdeck {
 
         c.peer_connection.on_peer_connection_state_change(Box::new(
             move |s: RTCPeerConnectionState| {
-                match tx_clone.send(CyberdeckEvent::PeerConnectionStateChange(s)) {
+                match tx_clone.send(PeerEvent {
+                    peer_id,
+                    data: PeerEventData::PeerConnectionStateChange(s),
+                }) {
                     Ok(_) => (),
                     Err(error) => {
                         panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -157,9 +148,10 @@ impl Cyberdeck {
                     let data_cannel_clone2 = d.clone();
                     let data_cannel_clone3 = d.clone();
                     d.on_open(Box::new(move || {
-                        match tx1.send(CyberdeckEvent::DataChannelStateChange(Connection {
-                            conn: data_cannel_clone1.clone(),
-                        })) {
+                        match tx1.send(PeerEvent {
+                            peer_id,
+                            data: PeerEventData::DataChannelStateChange(data_cannel_clone1.clone()),
+                        }) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -169,9 +161,10 @@ impl Cyberdeck {
                     }));
 
                     d.on_close(Box::new(move || {
-                        match tx2.send(CyberdeckEvent::DataChannelStateChange(Connection {
-                            conn: data_cannel_clone2.clone(),
-                        })) {
+                        match tx2.send(PeerEvent {
+                            peer_id,
+                            data: PeerEventData::DataChannelStateChange(data_cannel_clone2.clone()),
+                        }) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -181,12 +174,13 @@ impl Cyberdeck {
                     }));
 
                     d.on_message(Box::new(move |msg: DataChannelMessage| {
-                        match tx3.send(CyberdeckEvent::DataChannelMessage(
-                            Connection {
-                                conn: data_cannel_clone3.clone(),
-                            },
-                            msg,
-                        )) {
+                        match tx3.send(PeerEvent {
+                            peer_id,
+                            data: PeerEventData::DataChannelMessage(
+                                data_cannel_clone3.clone(),
+                                msg,
+                            ),
+                        }) {
                             Ok(_) => (),
                             Err(error) => {
                                 panic!("Error sending mpsc message: {:?}", error.to_string())
@@ -266,9 +260,13 @@ impl Cyberdeck {
     pub fn connection_state(&self) -> RTCPeerConnectionState {
         self.peer_connection.connection_state()
     }
+
+    pub fn random_peer_id() -> u128 {
+        rand::random()
+    }
 }
 
-impl Drop for Cyberdeck {
+impl Drop for Peer {
     fn drop(&mut self) {
         self.abort.send(()).expect("could not stop task on drop");
     }
