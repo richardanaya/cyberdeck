@@ -12,10 +12,9 @@ let mut peer = Peer::new(|peer_id, e| async move {
     match e {
         PeerEvent::DataChannelMessage(c, m) => {
             println!(
-                "{}::Recieved a message from channel {} with id {}!",
+                "{}::Recieved a message from channel {}!",
                 peer_id,
-                c.label(),
-                c.id()
+                c.label()
             );
             let msg_str = String::from_utf8(m.data.to_vec()).unwrap();
             println!(
